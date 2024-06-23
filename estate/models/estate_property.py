@@ -9,6 +9,7 @@ from odoo.exceptions import UserError
 class EstateProperty(models.Model):
     _name = "estate.property"
     _description = "Real Estate Property"
+    _order = "id desc"
 
     name = fields.Char(required=True)
     description = fields.Text()
@@ -45,6 +46,24 @@ class EstateProperty(models.Model):
 
     total_area = fields.Integer(compute='_compute_total_area', store=True)
 
+    _sql_constraints = [
+        ('check_selling_price_positive', 'CHECK(selling_price >= 0)',
+         'The selling price must be positive.'),
+    ]
+
+    _sql_constraints = [
+        ('check_expected_price_positive', 'CHECK(expected_price >= 0)',
+         'The expected price must be positive.'),
+    ]
+
+    @api.constrains('selling_price', 'expected_price')
+    def _check_selling_price(self):
+        for record in self:
+            if record.state == 'sold':
+                if record.selling_price < record.expected_price * 0.9:
+                    raise UserError(
+                        ('The selling price cannot be lower than 90% of the expected price.'))
+
     @api.depends('living_area', 'garden_area')
     def _compute_total_area(self):
         for record in self:
@@ -71,6 +90,7 @@ class EstateProperty(models.Model):
         for record in self:
             if record.state != 'canceled':
                 record.state = 'sold'
+                record.active = False
             else:
                 raise UserError(
                     ('You cannot sell a property that is canceled.'))
@@ -80,6 +100,7 @@ class EstateProperty(models.Model):
         for record in self:
             if record.state != 'sold':
                 record.state = 'canceled'
+                record.active = False
             else:
                 raise UserError(('You cannot cancel a property that is sold.'))
         return record.state
